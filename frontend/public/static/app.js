@@ -1,7 +1,7 @@
 'use strict';
 let runHistory = [];
 let lastResult = null;
-const API = () => (document.getElementById('apiBase')?.value || 'https://ai-arena-8le0.onrender.com').replace(/\/$/,'');
+const API = () => 'https://ai-arena-8le0.onrender.com';
 
 /* ── Canvas Particles ── */
 function initCanvas() {
@@ -68,55 +68,26 @@ window.addEventListener('DOMContentLoaded', () => {
 // Retry status check with countdown so user sees progress instead of stale "waking up"
 let _statusRetryTimer = null;
 
-async function checkStatus(isRetry = false) {
+async function checkStatus() {
   const dot = document.getElementById('ksDot');
   const txt = document.getElementById('ksTxt');
   const el  = document.getElementById('keyStatus');
 
-  if (!isRetry) {
-    dot.className = 'ks-dot off';
-    txt.textContent = 'Connecting…';
-    el.className = 'key-status';
-  }
-
   try {
-    // FAST check (no timeout needed)
-    const res = await fetch(API() + '/api/ping');
+    const res = await fetch('https://ai-arena-8le0.onrender.com/api/ping');
 
     if (!res.ok) throw new Error();
-
-    // SUCCESS → server is alive
-    if (_statusRetryTimer) {
-      clearInterval(_statusRetryTimer);
-      _statusRetryTimer = null;
-    }
 
     dot.className = 'ks-dot on';
     txt.textContent = 'Server Ready ✓';
     el.className = 'key-status ok';
 
   } catch (err) {
-    // ONLY retry on real network errors
-    let secs = 30;
+    console.error(err);
 
     dot.className = 'ks-dot off';
-    txt.textContent = `Server waking up… retrying in ${secs}s`;
+    txt.textContent = 'Cannot reach server';
     el.className = 'key-status err';
-
-    if (_statusRetryTimer) clearInterval(_statusRetryTimer);
-
-    _statusRetryTimer = setInterval(() => {
-      secs--;
-
-      if (secs <= 0) {
-        clearInterval(_statusRetryTimer);
-        _statusRetryTimer = null;
-        txt.textContent = 'Retrying…';
-        checkStatus(true);
-      } else {
-        txt.textContent = `Server waking up… retrying in ${secs}s`;
-      }
-    }, 1000);
   }
 }
 
