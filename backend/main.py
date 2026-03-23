@@ -333,13 +333,10 @@ async def synthesize(prompt: str, ranked: list, responses: dict) -> str:
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
-@app.get("/api/ping")
-async def ping():
-    """
-    Keep-alive endpoint.
-    Point UptimeRobot (free) at /api/ping every 5 min to prevent Render sleep.
-    https://uptimerobot.com → Add Monitor → HTTP(s) → https://pool-ai-1.onrender.com/api/ping
-    """
+from fastapi import Request
+
+@app.api_route("/api/ping", methods=["GET", "HEAD"])
+async def ping(request: Request):
     return {"pong": True}
 
 @app.get("/api/status")
