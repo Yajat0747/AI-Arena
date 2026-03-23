@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AI Arena</title>
+<link rel="stylesheet" href="/static/style.css">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&display=swap" rel="stylesheet">
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+
+<!-- SETTINGS MODAL -->
+<div class="overlay" id="settingsModal">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-ttl">API Configuration</div>
+      <button class="x-btn" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div class="info-box">
+        <span class="ib-label">NVIDIA NIM + GROQ</span>
+        Keys are saved server-side to <code>.env</code> and never sent back to the browser.
+        <div class="ib-links">
+          <a href="https://build.nvidia.com" target="_blank">→ Get NVIDIA key</a>
+          <a href="https://console.groq.com/keys" target="_blank">→ Get Groq key</a>
+        </div>
+      </div>
+      <div class="field-grp">
+        <label class="field-label">NVIDIA KEY 1 <span class="opt">Competitors: GPT-OSS · DeepSeek · Phi-3</span></label>
+        <div class="input-row">
+          <input type="password" id="inp-nvidiakey" placeholder="nvapi-..." class="txt-inp" autocomplete="off">
+          <button class="eye-btn" onclick="toggleVis('inp-nvidiakey',this)">👁</button>
+        </div>
+      </div>
+      <div class="field-grp">
+        <label class="field-label">NVIDIA KEY 2 <span class="opt">Dedicated judge: Gemma 7B</span></label>
+        <div class="input-row">
+          <input type="password" id="inp-nvidiakey2" placeholder="nvapi-..." class="txt-inp" autocomplete="off">
+          <button class="eye-btn" onclick="toggleVis('inp-nvidiakey2',this)">👁</button>
+        </div>
+      </div>
+      <div class="field-grp">
+        <label class="field-label">GROQ KEY <span class="opt">Llama 3.3 70B</span></label>
+        <div class="input-row">
+          <input type="password" id="inp-groqkey" placeholder="gsk_..." class="txt-inp" autocomplete="off">
+          <button class="eye-btn" onclick="toggleVis('inp-groqkey',this)">👁</button>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="field-grp">
+        <label class="field-label">ADMIN PASSWORD</label>
+        <div class="input-row">
+          <input type="password" id="inp-adminpw" placeholder="changeme123" class="txt-inp" autocomplete="off">
+          <button class="eye-btn" onclick="toggleVis('inp-adminpw',this)">👁</button>
+        </div>
+      </div>
+      <div id="save-msg" class="save-msg" style="display:none"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-ghost" onclick="closeSettings()">Cancel</button>
+      <button class="btn-accent" onclick="saveKeys()">Save Keys</button>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- SIDEBAR -->
+  <aside class="sb">
+    <div class="sb-scroll">
+
+      <div class="brand">
+        <div class="brand-sword">◈</div>
+        <div>
+          <div class="brand-name">AI Arena</div>
+          <div class="brand-tagline">Battle · Judge · Synthesize</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nb active" onclick="goView('arena',this)">
+          <span class="nb-icon">⚡</span><span class="nb-label">Arena</span>
+        </button>
+        <button class="nb" onclick="goView('history',this)">
+          <span class="nb-icon">◈</span><span class="nb-label">History</span>
+        </button>
+        <button class="nb" onclick="goView('about',this)">
+          <span class="nb-icon">◎</span><span class="nb-label">About</span>
+        </button>
+      </nav>
+
+      <div class="sb-section">
+        <div class="sbs-label">Competitors</div>
+        <div class="fighter" id="f-gpt_oss">
+          <div class="fighter-bar" style="--fc:#60a5fa"></div>
+          <div class="fighter-info">
+            <div class="fighter-name">GPT-OSS 120B</div>
+            <div class="fighter-prov">NVIDIA NIM</div>
+          </div>
+          <div class="fighter-wins" id="w-gpt_oss">—</div>
+        </div>
+        <div class="fighter" id="f-deepseek">
+          <div class="fighter-bar" style="--fc:#34d399"></div>
+          <div class="fighter-info">
+            <div class="fighter-name">DeepSeek R1</div>
+            <div class="fighter-prov">NVIDIA NIM</div>
+          </div>
+          <div class="fighter-wins" id="w-deepseek">—</div>
+        </div>
+        <div class="fighter" id="f-gemma">
+          <div class="fighter-bar" style="--fc:#f59e0b"></div>
+          <div class="fighter-info">
+            <div class="fighter-name">Phi-3 Mini 128K</div>
+            <div class="fighter-prov">NVIDIA NIM</div>
+          </div>
+          <div class="fighter-wins" id="w-gemma">—</div>
+        </div>
+        <div class="fighter" id="f-groq_llama">
+          <div class="fighter-bar" style="--fc:#a78bfa"></div>
+          <div class="fighter-info">
+            <div class="fighter-name">Llama 3.3 70B</div>
+            <div class="fighter-prov">Groq ⚡</div>
+          </div>
+          <div class="fighter-wins" id="w-groq_llama">—</div>
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sbs-label">Neutral Judge</div>
+        <div class="judge-card">
+          <div class="jc-glyph">⚖</div>
+          <div class="jc-info">
+            <div class="jc-name">Gemma 7B</div>
+            <div class="jc-desc">Never competes · Fully independent</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sbs-label">Backend</div>
+        <input class="base-inp" id="apiBase" value="http://localhost:3001">
+      </div>
+
+    </div>
+
+    <div class="sb-foot">
+      <div class="key-status" id="keyStatus">
+        <div class="ks-dot" id="ksDot"></div>
+        <div class="ks-text" id="ksTxt">Checking...</div>
+      </div>
+      <button class="cfg-btn" onclick="openSettings()">⚙ API Keys</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="mainArea">
+
+    <!-- ── ARENA VIEW ── -->
+    <div class="view active" id="view-arena">
+
+      <div class="arena-hero">
+        <div class="hero-label">Enter your prompt</div>
+        <div class="hero-sub">Four models compete. One neutral judge scores. The best answer wins.</div>
+      </div>
+
+      <div class="prompt-zone">
+        <div class="pz-inner">
+          <textarea id="promptInput" rows="4" placeholder="Ask anything. The harder the question, the more revealing the results..."></textarea>
+          <div class="pz-bar">
+            <div class="pz-left">
+              <span class="cc"><span id="charCnt">0</span> chars</span>
+              <span class="hint-key">ctrl+enter to run</span>
+            </div>
+            <div class="pz-right">
+              <button class="clear-btn" onclick="clearPrompt()">✕ Clear</button>
+              <button class="run-btn" id="runBtn" onclick="runArena()">
+                <span class="run-icon">⚡</span>
+                <span class="run-label">Run Arena</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="pz-corner pz-tl"></div>
+        <div class="pz-corner pz-tr"></div>
+        <div class="pz-corner pz-bl"></div>
+        <div class="pz-corner pz-br"></div>
+      </div>
+
+      <div class="phase-strip" id="phaseBar" style="display:none">
+        <div class="ps-item" id="pi1">
+          <div class="ps-num" id="pb1">01</div>
+          <div class="ps-info">
+            <div class="ps-title">Generate</div>
+            <div class="ps-sub" id="ps1">4 models responding</div>
+          </div>
+        </div>
+        <div class="ps-line"></div>
+        <div class="ps-item" id="pi2">
+          <div class="ps-num" id="pb2">02</div>
+          <div class="ps-info">
+            <div class="ps-title">Judge</div>
+            <div class="ps-sub" id="ps2">Gemma 7B scoring</div>
+          </div>
+        </div>
+        <div class="ps-line"></div>
+        <div class="ps-item" id="pi3">
+          <div class="ps-num" id="pb3">03</div>
+          <div class="ps-info">
+            <div class="ps-title">Synthesize</div>
+            <div class="ps-sub" id="ps3">Combining best insights</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="errBox" class="err-box" style="display:none"></div>
+
+      <div id="results" style="display:none">
+
+        <div class="results-divider">
+          <span class="rd-line"></span>
+          <span class="rd-label">Responses</span>
+          <span class="rd-line"></span>
+        </div>
+
+        <div class="cards-grid" id="respGrid"></div>
+
+        <div class="results-divider" style="margin-top:44px">
+          <span class="rd-line"></span>
+          <span class="rd-label">Leaderboard</span>
+          <span class="rd-line"></span>
+        </div>
+
+        <div class="leaderboard-wrap" id="rankTbl"></div>
+
+        <div class="results-divider" style="margin-top:44px">
+          <span class="rd-line"></span>
+          <span class="rd-label">Champion Answer</span>
+          <span class="rd-line"></span>
+        </div>
+
+        <div class="champ-zone">
+          <div class="champ-crown-row">
+            <div class="champ-crown-text">🏆 Arena Champion</div>
+            <div class="champ-actions">
+              <span class="synth-badge">AI-SYNTHESIZED</span>
+              <button class="copy-btn" id="copyBtn" onclick="copyAnswer()">⧉ Copy</button>
+            </div>
+          </div>
+          <div class="champ-winner-row" id="champWinner"></div>
+          <div class="champ-body" id="champBody"></div>
+          <div class="champ-meta" id="champMeta"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── HISTORY VIEW ── -->
+    <div class="view" id="view-history">
+      <div class="arena-hero">
+        <div class="hero-label">Battle History</div>
+        <div class="hero-sub">Every arena run this session.</div>
+      </div>
+      <div id="histList"><div class="empty-st">No battles yet — enter the arena ⚡</div></div>
+    </div>
+
+    <!-- ── ABOUT VIEW ── -->
+    <div class="view" id="view-about">
+      <div class="arena-hero">
+        <div class="hero-label">How it works</div>
+        <div class="hero-sub">Three phases. One unbiased judge. The best answer wins.</div>
+      </div>
+      <div class="about-phases">
+        <div class="ap-card">
+          <div class="ap-n">01</div>
+          <div class="ap-title">Generate</div>
+          <p>Your prompt is dispatched to all four models simultaneously, each operating under a unique persona. Analytical precision, step-by-step reasoning, creative insight, and philosophical depth.</p>
+        </div>
+        <div class="ap-card">
+          <div class="ap-n">02</div>
+          <div class="ap-title">Judge</div>
+          <p>A dedicated <strong>Gemma 7B</strong> model — running on a completely separate API key — scores every response across Accuracy, Clarity, Depth and Creativity. It never competes.</p>
+        </div>
+        <div class="ap-card">
+          <div class="ap-n">03</div>
+          <div class="ap-title">Synthesize</div>
+          <p>The top-ranked model synthesizes all responses into one definitive champion answer, weaving together the strongest insights from every competitor into a single brilliant response.</p>
+        </div>
+      </div>
+      <div class="roster">
+        <div class="roster-hd">Full Roster</div>
+        <div class="roster-grid">
+          <div class="roster-card" style="--rc:#60a5fa">
+            <div class="rc-dot-big" style="background:rgba(96,165,250,.15);color:#60a5fa">◈</div>
+            <div class="rc-name">GPT-OSS 120B</div>
+            <div class="rc-prov">NVIDIA NIM</div>
+            <div class="rc-role">COMPETITOR</div>
+            <div class="rc-persona">Analytical precision</div>
+          </div>
+          <div class="roster-card" style="--rc:#34d399">
+            <div class="rc-dot-big" style="background:rgba(52,211,153,.15);color:#34d399">◈</div>
+            <div class="rc-name">DeepSeek R1</div>
+            <div class="rc-prov">NVIDIA NIM</div>
+            <div class="rc-role">COMPETITOR</div>
+            <div class="rc-persona">Step-by-step reasoning</div>
+          </div>
+          <div class="roster-card" style="--rc:#f59e0b">
+            <div class="rc-dot-big" style="background:rgba(245,158,11,.15);color:#f59e0b">◈</div>
+            <div class="rc-name">Phi-3 Mini 128K</div>
+            <div class="rc-prov">NVIDIA NIM</div>
+            <div class="rc-role">COMPETITOR</div>
+            <div class="rc-persona">Sharp &amp; practical</div>
+          </div>
+          <div class="roster-card" style="--rc:#a78bfa">
+            <div class="rc-dot-big" style="background:rgba(167,139,250,.15);color:#a78bfa">◈</div>
+            <div class="rc-name">Llama 3.3 70B</div>
+            <div class="rc-prov">Groq ⚡</div>
+            <div class="rc-role">COMPETITOR</div>
+            <div class="rc-persona">Nuanced &amp; comprehensive</div>
+          </div>
+          <div class="roster-card judge-roster" style="--rc:#fbbf24">
+            <div class="rc-dot-big" style="background:rgba(251,191,36,.15);color:#fbbf24">⚖</div>
+            <div class="rc-name">Gemma 7B</div>
+            <div class="rc-prov">NVIDIA NIM</div>
+            <div class="rc-role" style="color:#fbbf24">JUDGE ONLY</div>
+            <div class="rc-persona">Neutral · Never competes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
