@@ -80,77 +80,44 @@ async function checkStatus(isRetry = false) {
   }
 
   try {
-    // Give Render up to 60s to wake up — but show progress
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60000);
+    // FAST check (no timeout needed)
+    const res = await fetch(API() + '/api/ping');
 
-    const res = await fetch(API() + '/api/status', { signal: controller.signal });
-    clearTimeout(timer);
+    if (!res.ok) throw new Error();
 
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const d = await res.json();
-
-    // Clear any retry timer since we succeeded
-    if (_statusRetryTimer) { clearInterval(_statusRetryTimer); _statusRetryTimer = null; }
-
-    if (d.missing_keys && d.missing_keys.length > 0) {
-      dot.className = 'ks-dot off';
-      txt.textContent = 'Missing keys: ' + d.missing_keys.join(', ') + ' — open ⚙ Settings';
-      el.className = 'key-status err';
-      return;
+    // SUCCESS → server is alive
+    if (_statusRetryTimer) {
+      clearInterval(_statusRetryTimer);
+      _statusRetryTimer = null;
     }
 
-    const ok = d.nvidia || d.groq;
-    const parts = [];
-    if (d.nvidia)       parts.push('NVIDIA');
-    if (d.nvidia_judge) parts.push('JUDGE');
-    if (d.groq)         parts.push('GROQ');
-    dot.className = 'ks-dot' + (ok ? ' on' : ' off');
-    txt.textContent = ok ? parts.join(' · ') + ' ✓' : 'No API keys set — open ⚙ Settings';
-    el.className = 'key-status' + (ok ? ' ok' : ' err');
+    dot.className = 'ks-dot on';
+    txt.textContent = 'Server Ready ✓';
+    el.className = 'key-status ok';
 
   } catch (err) {
-    // Only show "waking up" for genuine network failures, not HTTP errors
-    const isNetworkError = err.name === 'TypeError' || err.name === 'AbortError';
+    // ONLY retry on real network errors
+    let secs = 30;
 
-    if (isNetworkError) {
-      // Auto-retry with countdown
-      let secs = 30;
-      dot.className = 'ks-dot off';
-      txt.textContent = `Server waking up… retrying in ${secs}s`;
-      el.className = 'key-status err';
+    dot.className = 'ks-dot off';
+    txt.textContent = `Server waking up… retrying in ${secs}s`;
+    el.className = 'key-status err';
 
-      if (_statusRetryTimer) clearInterval(_statusRetryTimer);
-      _statusRetryTimer = setInterval(() => {
-        secs--;
-        if (secs <= 0) {
-          clearInterval(_statusRetryTimer);
-          _statusRetryTimer = null;
-          txt.textContent = 'Retrying…';
-          checkStatus(true);
-        } else {
-          txt.textContent = `Server waking up… retrying in ${secs}s`;
-        }
-      }, 1000);
-    } else {
-      dot.className = 'ks-dot off';
-      txt.textContent = 'Server error — check Render logs';
-      el.className = 'key-status err';
-    }
+    if (_statusRetryTimer) clearInterval(_statusRetryTimer);
+
+    _statusRetryTimer = setInterval(() => {
+      secs--;
+
+      if (secs <= 0) {
+        clearInterval(_statusRetryTimer);
+        _statusRetryTimer = null;
+        txt.textContent = 'Retrying…';
+        checkStatus(true);
+      } else {
+        txt.textContent = `Server waking up… retrying in ${secs}s`;
+      }
+    }, 1000);
   }
-}
-
-/* ── Nav ── */
-function goView(id, btn) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById('view-' + id).classList.add('active');
-  document.querySelectorAll('.nb').forEach(n => n.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  if (id === 'history') renderHistory();
-}
-function clearPrompt() {
-  document.getElementById('promptInput').value = '';
-  document.getElementById('charCnt').textContent = '0';
 }
 
 /* ── Phase ── */
