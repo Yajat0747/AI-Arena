@@ -65,24 +65,42 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ── Status ── */
-async function checkStatus() {
+// Retry status check with countdown so user sees progress instead of stale "waking up"
+let _statusRetryTimer = null;
+
+async function checkStatus(isRetry = false) {
   const dot = document.getElementById('ksDot');
   const txt = document.getElementById('ksTxt');
   const el  = document.getElementById('keyStatus');
+
+  if (!isRetry) {
+    dot.className = 'ks-dot off';
+    txt.textContent = 'Connecting…';
+    el.className = 'key-status';
+  }
+
   try {
-    const res = await fetch(API() + '/api/status', { signal: AbortSignal.timeout(8000) });
+    // Give Render up to 60s to wake up — but show progress
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60000);
+
+    const res = await fetch(API() + '/api/status', { signal: controller.signal });
+    clearTimeout(timer);
+
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
 
-    // Show which keys are missing so user knows exactly what to fix
+    // Clear any retry timer since we succeeded
+    if (_statusRetryTimer) { clearInterval(_statusRetryTimer); _statusRetryTimer = null; }
+
     if (d.missing_keys && d.missing_keys.length > 0) {
       dot.className = 'ks-dot off';
-      txt.textContent = 'Missing: ' + d.missing_keys.join(', ') + ' — open ⚙ Settings';
+      txt.textContent = 'Missing keys: ' + d.missing_keys.join(', ') + ' — open ⚙ Settings';
       el.className = 'key-status err';
       return;
     }
 
-    const ok    = d.nvidia || d.groq;
+    const ok = d.nvidia || d.groq;
     const parts = [];
     if (d.nvidia)       parts.push('NVIDIA');
     if (d.nvidia_judge) parts.push('JUDGE');
@@ -90,13 +108,35 @@ async function checkStatus() {
     dot.className = 'ks-dot' + (ok ? ' on' : ' off');
     txt.textContent = ok ? parts.join(' · ') + ' ✓' : 'No API keys set — open ⚙ Settings';
     el.className = 'key-status' + (ok ? ' ok' : ' err');
+
   } catch (err) {
-    dot.className = 'ks-dot off';
-    const isOffline = err.name === 'TypeError' || err.name === 'AbortError';
-    txt.textContent = isOffline
-      ? 'Server waking up… try again in 30s'
-      : 'Server offline — check Render dashboard';
-    el.className = 'key-status err';
+    // Only show "waking up" for genuine network failures, not HTTP errors
+    const isNetworkError = err.name === 'TypeError' || err.name === 'AbortError';
+
+    if (isNetworkError) {
+      // Auto-retry with countdown
+      let secs = 30;
+      dot.className = 'ks-dot off';
+      txt.textContent = `Server waking up… retrying in ${secs}s`;
+      el.className = 'key-status err';
+
+      if (_statusRetryTimer) clearInterval(_statusRetryTimer);
+      _statusRetryTimer = setInterval(() => {
+        secs--;
+        if (secs <= 0) {
+          clearInterval(_statusRetryTimer);
+          _statusRetryTimer = null;
+          txt.textContent = 'Retrying…';
+          checkStatus(true);
+        } else {
+          txt.textContent = `Server waking up… retrying in ${secs}s`;
+        }
+      }, 1000);
+    } else {
+      dot.className = 'ks-dot off';
+      txt.textContent = 'Server error — check Render logs';
+      el.className = 'key-status err';
+    }
   }
 }
 
@@ -142,14 +182,20 @@ async function runArena() {
   setPhase(1, 'run', '4 models generating...'); setPhase(2, '', 'Waiting'); setPhase(3, '', 'Waiting');
 
   try {
-    const t2 = setTimeout(() => setPhase(2, 'run', 'Gemma 7B judging...'), 10000);
-    const t3 = setTimeout(() => setPhase(3, 'run', 'Synthesizing...'), 22000);
+    const t2 = setTimeout(() => setPhase(2, 'run', 'Gemma 7B judging...'),  10000);
+    const t3 = setTimeout(() => setPhase(3, 'run', 'Synthesizing...'),       22000);
+
+    // 120s timeout — NVIDIA NIM can be slow on first call
+    const controller = new AbortController();
+    const arenaTimer = setTimeout(() => controller.abort(), 120000);
 
     const res = await fetch(API() + '/api/arena', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ prompt }),
+      signal:  controller.signal,
     });
+    clearTimeout(arenaTimer);
     clearTimeout(t2); clearTimeout(t3);
 
     if (!res.ok) {
@@ -166,23 +212,25 @@ async function runArena() {
     renderResults(data);
     document.getElementById('results').style.display = 'block';
     setTimeout(() => document.getElementById('results').scrollIntoView({ behavior: 'smooth' }), 80);
+
   } catch (e) {
     setPhase(1, '', '—');
     const box = document.getElementById('errBox');
     box.style.display = 'block';
 
-    // Give actionable error messages
     let msg = e.message || 'Unknown error';
-    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch')) {
-      msg = 'Cannot reach server. It may be waking up (Render free tier sleeps). Wait 30s and try again, or check your Render dashboard.';
+    if (e.name === 'AbortError') {
+      msg = 'Request timed out (>120s). NVIDIA NIM may be under load — please try again.';
+    } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+      msg = 'Cannot reach server. Check your Render dashboard — the service may have crashed.';
     } else if (msg.includes('API_KEY') || msg.includes('not configured')) {
-      msg = msg + ' — Go to Render Dashboard → Environment and add the missing key, then redeploy.';
+      msg = msg + ' → Go to Render Dashboard → Environment, add the missing key, then redeploy.';
     }
     box.innerHTML = '⚠ ' + escHtml(msg);
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<span class="run-icon">⚡</span><span class="run-label">Run Arena</span>';
-    checkStatus(); // Refresh status after each run
+    checkStatus();
   }
 }
 
