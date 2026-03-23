@@ -1,7 +1,7 @@
 'use strict';
 let runHistory = [];
 let lastResult = null;
-const API = () => (document.getElementById('apiBase')?.value || 'https://pool-ai-1.onrender.com').replace(/\/$/,'');
+const API = () => (document.getElementById('apiBase')?.value || 'https://ai-arena-8le0.onrender.com').replace(/\/$/,'');
 
 /* ── Canvas Particles ── */
 function initCanvas() {
